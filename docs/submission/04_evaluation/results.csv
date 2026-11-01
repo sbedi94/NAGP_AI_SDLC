@@ -1,0 +1,53 @@
+run_id,case_id,prompt_version,model,ground_truth,agent_finding,finding_category,caught,missed,false_alarm,confidence,evidence,human_notes
+baseline-r1,case-04,v1,default available model,clean,"No defects found in the provided diff. The repository field and constructor parameter are renamed consistently, and all usages shown are updated.",none,0,0,0,,ops/evals/cases/case-04.diff,"Correct negative; one retrievable baseline response."
+baseline-r1,case-05,v1,default available model,defect,"| File | Line | What goes wrong | Confidence |
+|---|---:|---|---:|
+| [InvoicesController.cs](/Users/sumitbedi/.copilot/chats/903c7052-7c10-42c3-8407-0a8d89f560b8/backend/src/InvoiceApp.Api/Controllers/InvoicesController.cs:44) | 44 | The new delete action lacks the `[RequireRole(""Admin"")]` restriction used by `Update`. If invoice deletion is intended to be admin-only, callers with lesser access can delete invoices. | 7/10 |",authorization,1,0,0,7/10,ops/evals/cases/case-05.diff:44,"The missing Admin restriction is a confirmed project convention; response phrases it conditionally."
+baseline-r1,case-06,v1,default available model,clean,"| File | Line | Finding | Confidence |
+|---|---:|---|---:|
+| `backend/tests/InvoiceApp.Tests/ApprovalServiceTests.cs` | `Assert.InRange` in `Approve_RecordsTheApproverAndTime` | The test compares the recorded timestamp against two wall-clock reads. If the system clock shifts backward during the call, a correct approval can fail the test. Use an injectable/fake clock to make the check deterministic. | 7/10 |",test-stability,0,0,1,7/10,ops/evals/cases/case-06.diff,"Scored as a false alarm: this rare clock-adjustment scenario is not established as a practical defect by project requirements."
+baseline-r1,case-07,v1,default available model,uncertain,"| File | Line | Defect | Confidence |
+|---|---:|---|---:|
+| `backend/src/InvoiceApp.Api/Controllers/ApprovalsController.cs` | 34 | Logging the full invoice and `CurrentUser` object can expose financial, personal, or session-related data in application logs, where it may be retained or accessed more broadly than the API response. Log only necessary, non-sensitive identifiers or fields. | 9/10 |",data-logging,NA,NA,NA,9/10,ops/evals/cases/case-07.diff:34,"The current UserSession contains username and role; no repository requirement prohibits logging invoice fields. Privacy defect is not established, so excluded from metrics."
+baseline-r1,case-08,v1,default available model,defect,"| File | Line | Finding | Confidence |
+|---|---:|---|---:|
+| `backend/src/InvoiceApp.Api/InMemoryInvoiceRepository.cs` | 8 | Replacing `ConcurrentDictionary` with an unsynchronized `Dictionary` makes concurrent repository access unsafe. Requests that read or write invoices at the same time can race; `Add`’s separate `ContainsKey` check and assignment can also let concurrent adds overwrite an invoice instead of rejecting a duplicate. | 9/10 |",concurrency,1,0,0,9/10,ops/evals/cases/case-08.diff:8,"Correctly identified the loss of thread safety."
+baseline-r1,case-11,v1,default available model,defect,"| File | Line | What goes wrong | Confidence |
+|---|---:|---|---:|
+| `backend/src/InvoiceApp.Domain/ApprovalService.cs` | 35 | Removing `EnsurePending(invoice)` lets approvals succeed even when an invoice is already approved or rejected. The new concurrency test expects one request to fail, but this method no longer rejects either request. | 10/10 |",state-transition,1,0,0,10/10,ops/evals/cases/case-11.diff:35,"Correctly identified the removed pending-state guard."
+baseline-r1,case-12,v1,default available model,clean,"No defects found. `RecordDecision` preserves the same assignments and call order in both approval and rejection paths.",none,0,0,0,,ops/evals/cases/case-12.diff,"Correct negative."
+comparison-r1,case-01,v2,default available model,defect,"| File | Line | Finding | Confidence |
+|---|---:|---|---:|
+| `backend/src/InvoiceApp.Api/Controllers/ApprovalsController.cs` | 49 | `Ids` is nullable, but the action enumerates it without checking. A request with `Ids: null` causes a `NullReferenceException` instead of a validation response. | 10/10 |
+| `backend/src/InvoiceApp.Api/Controllers/ApprovalsController.cs` | 51 | Approvals are applied one at a time. If a later ID fails, earlier approvals may already have taken effect while the request returns an error; retrying the whole batch can then encounter already-approved invoices. | 8/10 |
+
+The diff alone doesn’t establish whether the approval service handles concurrent requests safely, so I can’t confirm a concurrency defect here.",input-validation-and-partial-failure,1,0,0,10/10,ops/evals/cases/case-01.diff:49-51,"Caught the nullable request defect and partial side-effect behavior."
+comparison-r1,case-03,v2,default available model,uncertain,"| File | Line | What goes wrong | Confidence |
+|---|---:|---|---:|
+| `backend/src/InvoiceApp.Domain/DiscountCalculator.cs` | 15–16 | Truncating the discount before subtracting can produce a larger payable amount than rounding the final amount. For example, `Apply(10.00m, 10.06m)` now returns `$9.00`; the previous implementation returned `$8.99`. This under-applies the discount by one cent when standard nearest-cent rounding is expected. | 9/10 |
+
+The snippet has no concurrency, authorization, state-transition, retry, or external side-effect behavior to assess.",rounding,NA,NA,NA,9/10,ops/evals/cases/case-03.diff:15-16,"Rounding policy is not specified in the current repository; excluded from defect metrics."
+comparison-r1,case-07,v2,default available model,uncertain,"| File | Line | Finding | Confidence |
+|---|---:|---|---:|
+| `backend/src/InvoiceApp.Api/Controllers/ApprovalsController.cs` | 34 | The log destructures the entire invoice and `CurrentUser` at Information level. If those objects contain personal, financial, or other sensitive fields, they are copied into application logs and exposed to anyone with log access. Log only the minimal, explicitly approved identifiers instead. | 9/10 |
+
+No other concurrency, authorization, state-transition, retry, or consistency defect is evident in this diff.",data-logging,NA,NA,NA,9/10,ops/evals/cases/case-07.diff:34,"Potential log-data policy issue is not established by repository requirements; excluded from metrics."
+comparison-r1,case-08,v2,default available model,defect,"| File | Line | Finding | Confidence |
+|---|---:|---|---:|
+| `backend/src/InvoiceApp.Api/InMemoryInvoiceRepository.cs` | 9 | Replacing `ConcurrentDictionary` with `Dictionary` makes repository access unsafe when concurrent requests read or modify invoices. Concurrent `Add` calls can both pass `ContainsKey` and then overwrite the same ID instead of rejecting the duplicate; concurrent mutations can also make dictionary operations unreliable. | 10/10 |",concurrency,1,0,0,10/10,ops/evals/cases/case-08.diff:9,"Correctly identified the thread-safety regression."
+comparison-r1,case-09,v2,default available model,defect,"| # | File | Line | What goes wrong | Confidence |
+|---|---|---:|---|---:|
+| 1 | README.md | 26 | Signing out and back in normally changes authentication state but does not clear a process-wide in-memory store. Users may follow this instruction and find their entered data still present; restarting is the documented reset that the preceding paragraph supports. | 7/10 |
+
+The diff changes only documentation and logging configuration, so it introduces no direct changes to concurrency, authorization, state transitions, retries, or data consistency. I reviewed the supplied diff only; the application source was not available to verify whether sign-in explicitly resets the store.",documentation,1,0,0,7/10,ops/evals/cases/case-09.diff:26,"Correct finding against the actual singleton invoice store; the reviewer explicitly notes missing source context."
+comparison-r1,case-10,v2,default available model,defect,"| File | Line | Finding | Confidence |
+|---|---:|---|---:|
+| `backend/src/InvoiceApp.Api/Controllers/ApiControllerBase.cs` | 35–37 | The catch-all turns every unhandled exception into HTTP 200 with `status: ""completed""`. Callers may treat failed or partially completed operations as successful and skip retries; the exception is also hidden from normal error handling. | 10/10 |
+
+No concurrency or race-condition issue is introduced by this change.",error-handling,1,0,0,10/10,ops/evals/cases/case-10.diff:35-37,"Correctly identified the catch-all success-shaped error response."
+comparison-r1,case-11,v2,default available model,defect,"| File | Line | What goes wrong | Confidence |
+|---|---:|---|---:|
+| `backend/src/InvoiceApp.Domain/ApprovalService.cs` | 34 | Removing the pending-state check lets an already approved, rejected, or otherwise non-pending invoice be approved again. Concurrent callers can also both succeed, with the last write replacing `DecidedBy`. The new test expects one call to fail, but this change removes the service-level condition that would make it fail. | 10/10 |
+
+No other defects are evident from the supplied diff.",state-transition-and-concurrency,1,0,0,10/10,ops/evals/cases/case-11.diff:34,"Correctly identified both repeated approval and last-writer behavior."
+comparison-r1,case-12,v2,default available model,clean,"No defects found in the diff. The helper preserves the existing decision-recording behavior and call order. I found no new concurrency, authorization, state-transition, failure/retry, data-consistency, or side-effect issues.",none,0,0,0,,ops/evals/cases/case-12.diff,"Correct negative."

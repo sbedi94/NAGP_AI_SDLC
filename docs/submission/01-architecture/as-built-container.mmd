@@ -1,0 +1,41 @@
+flowchart LR
+    user["User / approver<br/>Uses browser UI<br/>Source: backend/src/InvoiceApp.Api/wwwroot/app.js"]
+
+    subgraph apiHost["ASP.NET Core API host<br/>Source: backend/src/InvoiceApp.Api/Program.cs"]
+        staticFiles["Static web UI hosting<br/>Program.cs: UseDefaultFiles, UseStaticFiles"]
+        sessionMiddleware["SessionAuthMiddleware<br/>Source: backend/src/InvoiceApp.Api/Auth/SessionAuthMiddleware.cs"]
+        authController["AuthController<br/>Source: backend/src/InvoiceApp.Api/Controllers/AuthController.cs"]
+        invoicesController["InvoicesController<br/>Source: backend/src/InvoiceApp.Api/Controllers/InvoicesController.cs"]
+        approvalsController["ApprovalsController<br/>Source: backend/src/InvoiceApp.Api/Controllers/ApprovalsController.cs"]
+        roleFilter["RequireRoleAttribute<br/>Source: backend/src/InvoiceApp.Api/Auth/RequireRoleAttribute.cs"]
+    end
+
+    subgraph domain["Domain project<br/>Source: backend/src/InvoiceApp.Domain"]
+        approvalService["ApprovalService<br/>Owns Draft, PendingApproval, Approved, Rejected lifecycle<br/>Source: backend/src/InvoiceApp.Domain/ApprovalService.cs"]
+        invoiceEntity["Invoice + InvoiceStatus<br/>Source: backend/src/InvoiceApp.Domain/Invoice.cs and InvoiceStatus.cs"]
+        repositoryInterface["IInvoiceRepository<br/>Source: backend/src/InvoiceApp.Domain/IInvoiceRepository.cs"]
+    end
+
+    subgraph memory["In-process application memory"]
+        sessionStore["SessionStore<br/>Opaque bearer-token sessions<br/>Source: backend/src/InvoiceApp.Api/Auth/SessionStore.cs"]
+        invoiceStore["InMemoryInvoiceRepository<br/>Seeded in-memory invoice list<br/>Source: backend/src/InvoiceApp.Api/InMemoryInvoiceRepository.cs"]
+    end
+
+    user -->|"GET / serves UI assets"| staticFiles
+    user -->|"POST /api/auth/login"| authController
+    authController -->|"Create / remove session"| sessionStore
+    user -->|"Bearer token on /api requests"| sessionMiddleware
+    sessionMiddleware -->|"Validate token"| sessionStore
+
+    user -->|"Create/list/get/submit/delete invoices"| invoicesController
+    user -->|"Approve/reject pending invoice"| approvalsController
+
+    invoicesController -->|"Submit uses ApprovalService"| approvalService
+    invoicesController -->|"Create/list/get/delete use repository"| repositoryInterface
+    approvalsController -->|"Approve/reject via service"| approvalService
+    approvalsController -->|"Role gate: Approver/Admin"| roleFilter
+    invoicesController -->|"Delete role gate: Admin"| roleFilter
+
+    approvalService -->|"Find/update invoices"| repositoryInterface
+    repositoryInterface -->|"Registered as singleton implementation in Program.cs"| invoiceStore
+    invoiceStore -->|"Stores Invoice objects"| invoiceEntity

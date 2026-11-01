@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI Augmentation Activity",
+  "type": "object",
+  "required": [
+    "id",
+    "timestamp",
+    "session_id",
+    "stage",
+    "ai_tool",
+    "model",
+    "mode",
+    "request",
+    "status"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "session_id": {
+      "type": "string"
+    },
+    "stage": {
+      "type": "string"
+    },
+    "agent": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "agent_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "agent_type": {
+      "enum": [
+        "built-in",
+        "custom",
+        "sub-agent",
+        "not_applicable"
+      ]
+    },
+    "ai_tool": {
+      "type": "string"
+    },
+    "model": {
+      "type": "string"
+    },
+    "mode": {
+      "enum": [
+        "ask",
+        "plan",
+        "agent",
+        "edit",
+        "combination"
+      ]
+    },
+    "repository": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "git_branch": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "git_commit": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "git_working_tree": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "context": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "request": {
+      "type": "string"
+    },
+    "response_summary": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "skills_used": {
+      "type": "array"
+    },
+    "subagents_used": {
+      "type": "array"
+    },
+    "mcp_tools_used": {
+      "type": "array"
+    },
+    "tools_used": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "files_read": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "files_modified": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "human_decision": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "action_verification": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "limitation": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "enum": [
+        "proposed",
+        "applied",
+        "rejected",
+        "partial",
+        "rework",
+        "validated",
+        "failed"
+      ]
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

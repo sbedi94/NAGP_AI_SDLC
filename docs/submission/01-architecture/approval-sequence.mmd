@@ -1,0 +1,40 @@
+sequenceDiagram
+    actor Approver
+    participant UI as Web UI<br/>backend/src/InvoiceApp.Api/wwwroot/app.js
+    participant Auth as SessionAuthMiddleware<br/>backend/src/InvoiceApp.Api/Auth/SessionAuthMiddleware.cs
+    participant Role as RequireRoleAttribute<br/>backend/src/InvoiceApp.Api/Auth/RequireRoleAttribute.cs
+    participant Controller as ApprovalsController<br/>backend/src/InvoiceApp.Api/Controllers/ApprovalsController.cs
+    participant Service as ApprovalService<br/>backend/src/InvoiceApp.Domain/ApprovalService.cs
+    participant Repo as IInvoiceRepository<br/>backend/src/InvoiceApp.Domain/IInvoiceRepository.cs
+    participant Store as InMemoryInvoiceRepository<br/>backend/src/InvoiceApp.Api/InMemoryInvoiceRepository.cs
+
+    Approver->>UI: Click approve on pending invoice
+    UI->>Auth: POST /api/approvals/{invoiceId}/approve with bearer token
+    Auth->>Auth: Require valid session for /api except login
+    Auth->>Role: Continue to controller filters
+    Role->>Role: Require role Approver or Admin
+    Role->>Controller: Invoke Approve(invoiceId)
+    Controller->>Service: Approve(invoiceId, session.Username)
+    Service->>Repo: GetById(invoiceId)
+    Repo->>Store: Read in-memory invoice
+    Store-->>Repo: Invoice or null
+    Repo-->>Service: Invoice
+    Service->>Service: Ensure status is PendingApproval
+    Service->>Service: Set Approved, DecidedBy, DecidedAt
+    Service->>Repo: Update(invoice)
+    Repo->>Store: Replace in-memory invoice
+    Service-->>Controller: Approved invoice
+    Controller-->>UI: 200 OK with invoice response
+    UI-->>Approver: Show approved state
+
+    alt Missing invoice
+        Service-->>Controller: KeyNotFoundException
+        Controller-->>UI: 404 via ApiControllerBase.Handle
+    else Not pending
+        Service-->>Controller: InvalidOperationException
+        Controller-->>UI: 409 via ApiControllerBase.Handle
+    else Invalid or missing session
+        Auth-->>UI: 401
+    else Missing role
+        Role-->>UI: 403
+    end

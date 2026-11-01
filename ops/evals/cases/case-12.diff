@@ -1,0 +1,35 @@
+diff --git a/backend/src/InvoiceApp.Domain/ApprovalService.cs b/backend/src/InvoiceApp.Domain/ApprovalService.cs
+--- a/backend/src/InvoiceApp.Domain/ApprovalService.cs
++++ b/backend/src/InvoiceApp.Domain/ApprovalService.cs
+@@ -34,8 +34,7 @@ public class ApprovalService
+         EnsurePending(invoice);
+ 
+         invoice.Status = InvoiceStatus.Approved;
+-        invoice.DecidedBy = approver;
+-        invoice.DecidedAt = DateTime.UtcNow;
++        RecordDecision(invoice, approver);
+         _repository.Update(invoice);
+         return invoice;
+     }
+@@ -51,8 +50,7 @@ public class ApprovalService
+         EnsurePending(invoice);
+ 
+         invoice.Status = InvoiceStatus.Rejected;
+-        invoice.DecidedBy = approver;
+-        invoice.DecidedAt = DateTime.UtcNow;
++        RecordDecision(invoice, approver);
+         invoice.DecisionNote = reason;
+         _repository.Update(invoice);
+         return invoice;
+@@ -59,5 +57,11 @@ public class ApprovalService
+     }
+ 
++    private static void RecordDecision(Invoice invoice, string approver)
++    {
++        invoice.DecidedBy = approver;
++        invoice.DecidedAt = DateTime.UtcNow;
++    }
++
+     private Invoice Find(string invoiceId) =>
+         _repository.GetById(invoiceId)
+         ?? throw new KeyNotFoundException($"Invoice {invoiceId} was not found.");

@@ -1,0 +1,76 @@
+flowchart LR
+    approver["Approver"]
+
+    subgraph caller["Caller trust boundary"]
+        browser["Browser + Web UI<br/>Current UI source: backend/src/InvoiceApp.Api/wwwroot/app.js"]
+    end
+
+    subgraph azure["Azure cloud trust boundary"]
+        subgraph appservice["PROPOSED / NOT IMPLEMENTED — Azure App Service"]
+            staticUiHost["PROPOSED / NOT IMPLEMENTED — Static UI hosting<br/>Current host reference: backend/src/InvoiceApp.Api/Program.cs"]
+            api["PROPOSED / NOT IMPLEMENTED — ASP.NET Core 8 API<br/>Current host reference: backend/src/InvoiceApp.Api/Program.cs"]
+            approvalController["PROPOSED / NOT IMPLEMENTED — ApprovalsController<br/>Current reference: backend/src/InvoiceApp.Api/Controllers/ApprovalsController.cs"]
+            approvalService["PROPOSED / NOT IMPLEMENTED — ApprovalService<br/>Current rule reference: backend/src/InvoiceApp.Domain/ApprovalService.cs"]
+            sqlRepository["PROPOSED / NOT IMPLEMENTED — SQL invoice / approval repository<br/>Current abstraction reference: backend/src/InvoiceApp.Domain/IInvoiceRepository.cs"]
+        end
+
+        subgraph workerHost["PROPOSED / NOT IMPLEMENTED — Background processing host; Azure hosting service to decide"]
+            outboxPublisher["PROPOSED / NOT IMPLEMENTED — Outbox publisher"]
+            paymentWorker["PROPOSED / NOT IMPLEMENTED — Background payment worker"]
+            reconciliation["PROPOSED / NOT IMPLEMENTED — Payment reconciliation job"]
+            operations["PROPOSED / NOT IMPLEMENTED — Operations alerting and manual review"]
+        end
+
+        subgraph persistence["PROPOSED / NOT IMPLEMENTED — Azure SQL trust boundary"]
+            sql[("Azure SQL<br/>Invoices; PaymentSubmissions; Outbox; AuditRecords<br/>Audit retention: 7 years")]
+        end
+
+        subgraph messaging["PROPOSED / NOT IMPLEMENTED — Azure Service Bus trust boundary"]
+            queue[["Payment submission queue<br/>At-least-once delivery"]]
+            dlq[["Dead-letter queue"]]
+        end
+    end
+
+    subgraph providerBoundary["External provider trust boundary"]
+        payex["PROPOSED / NOT IMPLEMENTED — PayEx payment provider<br/>External system; HTTPS API"]
+    end
+
+    approver -->|"Uses approval UI"| browser
+    staticUiHost -->|"Serves UI assets over HTTPS"| browser
+    browser -->|"HTTPS; authenticated approval request<br/>Current role-gate reference: ApprovalsController.cs and Auth/RequireRoleAttribute.cs"| api
+    api -->|"Routes approval endpoint"| approvalController
+    approvalController -->|"Invokes approval operation"| approvalService
+
+    approvalService -->|"Calls repository"| sqlRepository
+    sqlRepository -->|"PROPOSED / NOT IMPLEMENTED — Transactional outbox: one SQL transaction approves invoice, creates PaymentSubmission, appends audit record, and inserts outbox event. Commit or roll back together."| sql
+    approvalService -->|"Returns result after transaction commits"| approvalController
+    approvalController -->|"Returns API result"| api
+    api -->|"Approval response"| browser
+
+    outboxPublisher -->|"PROPOSED / NOT IMPLEMENTED — Poll/claim undispatched outbox events"| sql
+    outboxPublisher -->|"PROPOSED / NOT IMPLEMENTED — Publish payment intent; duplicates possible if publish succeeds but dispatch mark fails"| queue
+    outboxPublisher -->|"PROPOSED / NOT IMPLEMENTED — Mark event dispatched after broker acknowledgment"| sql
+
+    queue -->|"PROPOSED / NOT IMPLEMENTED — At-least-once delivery; duplicates are expected and handled"| paymentWorker
+    paymentWorker -->|"PROPOSED / NOT IMPLEMENTED — Load/claim PaymentSubmission; enforce unique submission and persist attempt state"| sql
+    paymentWorker -->|"PROPOSED / NOT IMPLEMENTED — HTTPS submit; stable idempotency key from immutable PaymentSubmission ID"| payex
+    payex -->|"Provider receipt or definitive result; contract support to verify"| paymentWorker
+    paymentWorker -->|"PROPOSED / NOT IMPLEMENTED — Persist provider reference, outcome, attempts and audit event"| sql
+
+    paymentWorker -->|"PROPOSED / NOT IMPLEMENTED — Transient failure: bounded backoff and retry; same idempotency key"| queue
+    paymentWorker -->|"PROPOSED / NOT IMPLEMENTED — Retry limit reached or non-retryable processing failure"| dlq
+    dlq -->|"PROPOSED / NOT IMPLEMENTED — Alert; inspect and reconcile before controlled replay"| operations
+    operations -->|"PROPOSED / NOT IMPLEMENTED — Authorized replay after duplicate/status checks"| queue
+
+    paymentWorker -->|"PROPOSED / NOT IMPLEMENTED — Timeout or connection loss: record outcome as UNKNOWN; do not assume PayEx did not process"| sql
+    reconciliation -->|"PROPOSED / NOT IMPLEMENTED — Find UNKNOWN / stale submissions"| sql
+    reconciliation -->|"PROPOSED / NOT IMPLEMENTED — Query provider status/reference before deciding whether to retry"| payex
+    payex -->|"Provider lookup result, if supported by contract"| reconciliation
+    reconciliation -->|"PROPOSED / NOT IMPLEMENTED — Record reconciled outcome and audit evidence; retry only when safe"| sql
+    reconciliation -->|"PROPOSED / NOT IMPLEMENTED — Unresolved or mismatched state requires investigation"| operations
+
+    auditRetention["PROPOSED / NOT IMPLEMENTED — Retention policy and controls<br/>Keep audit records for seven years"]
+    auditRetention -->|"Applies to AuditRecords; verify archival, immutability and deletion controls"| sql
+
+    exactlyOnce["Important: the transactional outbox makes invoice approval and payment intent atomic in Azure SQL; neither the outbox nor Service Bus guarantees exactly-once external payment effects. Duplicate protection depends on persisted deduplication and PayEx idempotency support/semantics. Timeout recovery also depends on PayEx status queries or manual reconciliation."]
+    sql -.-> exactlyOnce

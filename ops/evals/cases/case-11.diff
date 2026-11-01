@@ -1,0 +1,56 @@
+diff --git a/backend/src/InvoiceApp.Domain/ApprovalService.cs b/backend/src/InvoiceApp.Domain/ApprovalService.cs
+--- a/backend/src/InvoiceApp.Domain/ApprovalService.cs
++++ b/backend/src/InvoiceApp.Domain/ApprovalService.cs
+@@ -31,7 +31,6 @@ public class ApprovalService
+     public Invoice Approve(string invoiceId, string approver)
+     {
+         var invoice = Find(invoiceId);
+-        EnsurePending(invoice);
+ 
+         invoice.Status = InvoiceStatus.Approved;
+         invoice.DecidedBy = approver;
+diff --git a/backend/tests/InvoiceApp.Tests/ApprovalServiceConcurrencyTests.cs b/backend/tests/InvoiceApp.Tests/ApprovalServiceConcurrencyTests.cs
+new file mode 100644
+--- /dev/null
++++ b/backend/tests/InvoiceApp.Tests/ApprovalServiceConcurrencyTests.cs
+@@ -0,0 +1,40 @@
++using InvoiceApp.Domain;
++using Xunit;
++
++namespace InvoiceApp.Tests;
++
++public class ApprovalServiceConcurrencyTests
++{
++    [Fact]
++    public async Task Approve_ConcurrentRequestsForSameInvoice_OnlyOneSucceeds()
++    {
++        var invoice = new Invoice
++        {
++            Id = "INV-1",
++            CustomerName = "Test School",
++            Amount = 100m,
++            Status = InvoiceStatus.PendingApproval
++        };
++        var service = new ApprovalService(new FakeInvoiceRepository(invoice));
++
++        var outcomes = await Task.WhenAll(
++            Task.Run(() => ApproveOrConflict(service, "approver-one")),
++            Task.Run(() => ApproveOrConflict(service, "approver-two")));
++
++        Assert.Equal(1, outcomes.Count(succeeded => succeeded));
++        Assert.Equal(1, outcomes.Count(succeeded => !succeeded));
++    }
++
++    private static bool ApproveOrConflict(ApprovalService service, string approver)
++    {
++        try
++        {
++            service.Approve("INV-1", approver);
++            return true;
++        }
++        catch (InvalidOperationException)
++        {
++            return false;
++        }
++    }
++}

@@ -1,6 +1,6 @@
 # Review eval
 
-Ten fixed cases for measuring how well a review prompt performs on this
+Twelve fixed cases for measuring how well a review prompt performs on this
 codebase. Each case is a diff in `cases/`. Some contain a defect and some do
 not; which is which is not recorded here.
 
@@ -29,11 +29,25 @@ that decides whether anyone keeps using the reviewer.
 5. Change exactly one thing — the prompt, the model, or the context file —
    and run the set again.
 
+Cases 11 and 12 are additional locally authored cases. Run the same case set
+with the baseline prompt and the comparison prompt for a matched evaluation.
+
 ## The review prompt
 
 > Review this diff for defects. For each finding give the file, the line, what
 > goes wrong, and how confident you are. If you find nothing, say so
 > explicitly rather than listing general observations.
+
+## Comparison prompt
+
+The comparison prompt keeps the baseline wording and adds targeted review
+dimensions:
+
+> Review this diff for defects. For each finding give the file, the line, what
+> goes wrong, and how confident you are. If you find nothing, say so
+> explicitly rather than listing general observations. Also examine concurrency
+> and race conditions, authorization boundaries, state transitions, failure and
+> retry behavior, data consistency, and side effects.
 
 ## Scoring
 
